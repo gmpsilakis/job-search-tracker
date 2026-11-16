@@ -1,0 +1,741 @@
+<title>Job Search Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: fixed left rail (top strip on phones) + one working pane per view; records open in a side sheet. Ledger-green accent, amber for "due", red for "overdue". */
+:root{
+  --bg:#F3F5F4; --surface:#FFFFFF; --sunk:#E9EEEC; --ink:#17201D; --muted:#5B6863; --line:#D8E0DC;
+  --accent:#1D6A54; --accent-ink:#FFFFFF; --accent-soft:#DDEEE7;
+  --warn:#A65A12; --warn-soft:#F6E9D9; --bad:#B03636; --bad-soft:#F6E0E0; --good:#2A7A4B; --good-soft:#DFF0E5;
+  --info:#3456A3; --info-soft:#E2E8F6; --none:#9AA6A1;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1412; --surface:#171D1B; --sunk:#121816; --ink:#E4EBE8; --muted:#97A5A0; --line:#2A3330;
+  --accent:#5BC29E; --accent-ink:#0B1712; --accent-soft:#1B362D;
+  --warn:#E2A15A; --warn-soft:#382A1A; --bad:#EC8080; --bad-soft:#3A2020; --good:#72CF97; --good-soft:#1B3325;
+  --info:#93ADEE; --info-soft:#1E2742; --none:#5E6B66; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1412; --surface:#171D1B; --sunk:#121816; --ink:#E4EBE8; --muted:#97A5A0; --line:#2A3330;
+  --accent:#5BC29E; --accent-ink:#0B1712; --accent-soft:#1B362D;
+  --warn:#E2A15A; --warn-soft:#382A1A; --bad:#EC8080; --bad-soft:#3A2020; --good:#72CF97; --good-soft:#1B3325;
+  --info:#93ADEE; --info-soft:#1E2742; --none:#5E6B66; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5}
+body.locked{overflow:hidden}
+h1,h2,h3{font-family:var(--display);font-weight:700;text-wrap:balance;margin:0;letter-spacing:-.01em}
+a{color:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.nav{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:20px;padding:22px 14px 18px max(14px,env(safe-area-inset-left,0px))}
+.brand h1{font-size:21px;line-height:1.1}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+.nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:6px;color:var(--ink);text-decoration:none;font-weight:500}
+.nav a:hover{background:var(--sunk)}
+.nav a[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+.badge{font-family:var(--mono);font-size:11.5px;min-width:22px;text-align:center;padding:1px 6px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.badge.hot{background:var(--accent);color:var(--accent-ink)}
+.grad{margin-top:auto;border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:6px}
+.grad .big{font-family:var(--display);font-size:26px;font-weight:700;line-height:1}
+.small{font-size:12px;color:var(--muted)}
+.conn{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.conn i{width:7px;height:7px;border-radius:50%;background:var(--none);flex:none}
+.conn.ok i{background:var(--good)} .conn.warn i{background:var(--warn)} .conn.bad i{background:var(--bad)}
+main{min-width:0;padding-block:26px 64px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.head h2{font-size:28px;line-height:1.1}
+.head p{margin:4px 0 0;color:var(--muted);max-width:68ch}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:6px;cursor:pointer;font-weight:500;white-space:nowrap;text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--ink);background:var(--sunk)}
+.btn.danger{color:var(--bad)}
+.btn.danger[data-armed="1"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.btn.sm{padding:4px 9px;font-size:12.5px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;min-width:0}
+.panel>h3{font-size:16px;margin-bottom:10px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.panel>h3 .small{font-family:var(--body);font-weight:400}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stat{background:var(--surface);padding:14px 16px}
+.stat b{display:block;font-family:var(--display);font-size:30px;line-height:1.05}
+.stat span{color:var(--muted);font-size:12.5px}
+.label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.list{display:flex;flex-direction:column}
+.item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 0;border-top:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;width:100%}
+.item:first-child{border-top:0}
+.item:hover .t{text-decoration:underline}
+.item .t{font-weight:600}
+.item .s{color:var(--muted);font-size:12.5px}
+.empty{color:var(--muted);padding:6px 0;font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.info{background:var(--info-soft);color:var(--info)}
+.pill.acc{background:var(--accent-soft);color:var(--accent)}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:5px}
+.dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)} .dot.info{background:var(--info)} .dot.good{background:var(--good)}
+.funnel{display:flex;height:30px;border-radius:6px;overflow:hidden;background:var(--sunk)}
+.funnel div{display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--accent-ink);min-width:24px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:9px;height:9px;border-radius:2px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters select,.filters input{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:6px 8px;min-width:0}
+.filters input{width:200px;max-width:100%}
+.seg-toggle{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg-toggle button{border:0;background:var(--surface);padding:6px 12px;cursor:pointer;color:var(--muted)}
+.seg-toggle button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.board-scroll{overflow-x:auto;padding-bottom:8px}
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(232px,1fr);gap:12px;min-width:min-content}
+.col{background:var(--sunk);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+.col>header{display:flex;justify-content:space-between;align-items:center;padding:0 2px 2px}
+.col>header b{font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 11px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;width:100%}
+.card:hover{border-color:var(--muted)}
+.card .co{font-size:12px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;gap:6px}
+.card .ti{font-weight:600;line-height:1.3}
+.card .meta{display:flex;flex-wrap:wrap;gap:4px}
+.card .na{font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+.fitdots{display:inline-flex;gap:3px;align-items:center}
+.fitdots i{width:8px;height:8px;border-radius:2px;background:var(--line)}
+.fitdots i.strong{background:var(--good)} .fitdots i.promising{background:var(--info)} .fitdots i.weak{background:var(--bad)}
+.table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--sunk);position:sticky;top:0}
+tbody tr{cursor:pointer} tbody tr:hover{background:var(--sunk)}
+tbody tr:last-child td{border-bottom:0}
+td .s{color:var(--muted);font-size:12.5px}
+.leads{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.lead{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.lead .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.score{font-family:var(--mono);font-size:13px;font-weight:500;padding:3px 8px;border-radius:6px;background:var(--sunk);white-space:nowrap}
+.score.hi{background:var(--good-soft);color:var(--good)} .score.mid{background:var(--info-soft);color:var(--info)} .score.lo{background:var(--sunk);color:var(--muted)}
+.lead p{margin:0;font-size:13px}
+.lead .why{color:var(--ink)} .lead .con{color:var(--warn)}
+.lead .foot{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:4px}
+.criteria{display:flex;flex-wrap:wrap;gap:6px}
+.criteria span{border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12.5px;background:var(--surface)}
+.cocards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.co-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px;cursor:pointer;text-align:left;width:100%}
+.co-card:hover{border-color:var(--muted)}
+.co-card h4{margin:0;font-family:var(--display);font-size:18px}
+.co-card p{margin:0;font-size:13px}
+.co-card .nx{font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:7px;margin-top:auto}
+.kv{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
+.tl-scroll{overflow-x:auto}
+.tl{position:relative;min-width:720px;height:150px;margin-top:6px}
+.tl .per{position:absolute;top:26px;height:76px;border-radius:6px;padding:8px 9px;font-size:12px;overflow:hidden;border:1px solid var(--line);background:var(--surface)}
+.tl .per b{display:block;font-size:12.5px}
+.tl .per.cls{background:var(--info-soft);border-color:transparent}
+.tl .per.coop{background:var(--warn-soft);border-color:transparent}
+.tl .per.dia{background:var(--accent-soft);border-color:transparent}
+.tl .per.work{background:var(--sunk)}
+.tl .per.ft{background:var(--good-soft);border-color:transparent}
+.tl .tick{position:absolute;top:0;font-size:11px;color:var(--muted);font-family:var(--mono);transform:translateX(-50%)}
+.tl .now{position:absolute;top:18px;bottom:20px;width:2px;background:var(--bad)}
+.tl .now span{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--bad);font-weight:600;white-space:nowrap}
+/* modal sheet */
+.modal{position:fixed;inset:0;z-index:50;background:rgb(10 16 14 / .45);display:flex;justify-content:flex-end}
+.sheet{background:var(--bg);width:min(760px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgb(0 0 0 / .18)}
+.sheet>header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 20px;padding-top:calc(16px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);background:var(--surface)}
+.sheet>header h2{font-size:20px}
+.sheet .body{overflow-y:auto;padding:18px 20px 30px;flex:1;display:flex;flex-direction:column;gap:18px}
+.sheet>footer{display:flex;justify-content:space-between;gap:8px;padding:12px 20px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--surface)}
+#mform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide,.fsec,.fitgrid{grid-column:1/-1}
+.f>span{font-size:12px;font-weight:600;color:var(--muted)}
+.f>span em{font-style:normal;font-weight:400;margin-left:6px}
+.f input,.f select,.f textarea{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+.f textarea{resize:vertical}
+.f.check{flex-direction:row;align-items:center;gap:8px;padding-top:20px}
+.f.check input{width:auto}
+.f.check span{font-size:13px;color:var(--ink);font-weight:500}
+.fsec{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);font-family:var(--body);font-weight:600;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
+.fsec:first-child{margin-top:0;padding-top:0;border-top:0}
+.key3 textarea{border-color:var(--accent);background:var(--accent-soft)}
+.fitgrid{display:flex;flex-direction:column;gap:8px}
+.fitrow{display:grid;grid-template-columns:200px auto minmax(0,1fr);gap:10px;align-items:center}
+.fitlab{font-size:13px;font-weight:500}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg label{cursor:pointer}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;padding:4px 8px;font-size:12px;color:var(--muted);text-transform:capitalize}
+.seg label+label span{border-left:1px solid var(--line)}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
+.seg-strong input:checked+span{background:var(--good);color:var(--surface)}
+.seg-promising input:checked+span{background:var(--info);color:var(--surface)}
+.seg-weak input:checked+span{background:var(--bad);color:var(--surface)}
+.seg-unknown input:checked+span{background:var(--muted);color:var(--surface)}
+.fitnote{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 8px;min-width:0;width:100%}
+.sub{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.sub h3{font-size:15px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 14px;border-radius:6px;z-index:80;font-size:13px;max-width:calc(100% - 32px)}
+.notice{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;color:var(--muted)}
+.notice.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+.qlist{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+@media (max-width:980px){.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .nav{position:sticky;top:env(safe-area-inset-top,0px);height:auto;z-index:20;border-right:0;border-bottom:1px solid var(--line);flex-direction:row;align-items:center;gap:12px;padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));overflow-x:auto}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--surface)}
+  .brand p,.grad{display:none}
+  .brand h1{font-size:16px;white-space:nowrap}
+  .nav ul{flex-direction:row}
+  .nav a{white-space:nowrap;padding:6px 9px}
+  main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 60px}
+  .grid2,.grid3{grid-template-columns:minmax(0,1fr)}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #mform{grid-template-columns:minmax(0,1fr)}
+  .fitrow{grid-template-columns:minmax(0,1fr)}
+  .seg{justify-self:start}
+  .head h2{font-size:23px}
+}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+</style>
+
+<div class="app">
+  <nav class="nav" aria-label="Sections">
+    <div class="brand"><h1>Job Search Tracker</h1><p>Roles, interviews and new leads</p></div>
+    <ul id="navlist"></ul>
+    <div class="grad">
+      <span class="label">Until graduation</span>
+      <span class="big num" id="gradCount">—</span>
+      <span class="small" id="gradNote">December 2027</span>
+      <span class="conn" id="conn"><i></i><span>Connecting to your saved data…</span></span>
+    </div>
+  </nav>
+  <main><div class="wrap" id="view"></div></main>
+</div>
+
+<datalist id="companyList"></datalist>
+
+<div class="modal" id="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <header><h2 id="mtitle">Edit</h2><button class="btn ghost" type="button" data-act="close">Close</button></header>
+    <div class="body">
+      <form id="mform" novalidate></form>
+      <div id="mextra"></div>
+    </div>
+    <footer>
+      <button class="btn danger" type="button" id="mdel" data-act="del">Delete</button>
+      <div class="actions"><button class="btn" type="button" data-act="close">Cancel</button><button class="btn primary" type="button" data-act="save">Save</button></div>
+    </footer>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ---------- constants ---------- */
+const STATUSES=[['watchlist','Watchlist'],['researching','Researching'],['outreach','Outreach planned'],['applied','Applied'],['interviewing','Interviewing'],['offer','Offer'],['closed','Closed'],['passed','Passed']];
+const ACTIVE=['watchlist','researching','outreach','applied','interviewing','offer'];
+const STATUS_COLOR={watchlist:'var(--none)',researching:'var(--muted)',outreach:'var(--info)',applied:'var(--warn)',interviewing:'var(--accent)',offer:'var(--good)',closed:'var(--bad)',passed:'var(--line)'};
+const LANES=['Early-stage VC investing','Venture studio / incubation','VC platform & portfolio support',"Startup ops / founder's office",'Go-to-market & partnerships','Customer implementation / strategy','Co-op','Other'];
+const FIT=[['decide','Decision influence'],['access','Access to founders / leadership'],['own','Work I would own'],['variety','Variety over time'],['mentor','Mentorship'],['people','Customer / founder interaction'],['routine','Little routine work (modeling, slides, repetitive)']];
+const FITV=['strong','promising','weak','unknown'];
+const FLOOR={Boston:70000,NYC:80000};
+const TARGET=100000;
+const COLS=['companies','roles','interviews','contacts','leads','stories'];
+const VIEWS=[['overview','Overview'],['new','New jobs'],['pipeline','Pipeline'],['companies','Companies'],['interviews','Interviews'],['people','People & stories'],['timeline','Timeline']];
+
+/* ---------- state ---------- */
+const S={companies:[],roles:[],interviews:[],contacts:[],leads:[],stories:[],meta:{}};
+let db=null,loaded=false,modalCtx=null;
+const UI=loadUI();
+function loadUI(){try{return Object.assign({mode:'board',city:'',lane:'',type:'',show:'active',q:'',leadState:'new'},JSON.parse(localStorage.getItem('gjs-ui')||'{}'))}catch(e){return{mode:'board',city:'',lane:'',type:'',show:'active',q:'',leadState:'new'}}}
+function saveUI(){try{localStorage.setItem('gjs-ui',JSON.stringify(UI))}catch(e){}}
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const pd=s=>{if(!s||!/^\d{4}-\d{2}-\d{2}/.test(s))return null;const[y,m,d]=s.slice(0,10).split('-').map(Number);return new Date(y,m-1,d)};
+const daysFrom=s=>{const d=pd(s);if(!d)return null;return Math.round((d-pd(todayStr()))/864e5)};
+const fmtDate=s=>{const d=pd(s);if(!d)return '';const o={month:'short',day:'numeric'};if(d.getFullYear()!==new Date().getFullYear())o.year='numeric';return d.toLocaleDateString('en-US',o)};
+const rel=s=>{const n=daysFrom(s);if(n===null)return '';if(n===0)return 'today';if(n===1)return 'tomorrow';if(n===-1)return 'yesterday';return n>0?`in ${n} days`:`${-n} days ago`};
+const k=n=>n>=1000?'$'+Math.round(n/1000)+'k':'$'+n;
+const statusLabel=s=>(STATUSES.find(x=>x[0]===s)||[0,s||'—'])[1];
+const byId=(col,id)=>S[col].find(x=>x.id===id);
+const roleLabel=r=>r?`${r.company||'?'} — ${r.title||'Untitled role'}`:'Unlinked';
+const ivsFor=id=>S.interviews.filter(i=>i.roleId===id).sort((a,b)=>(a.round||0)-(b.round||0));
+const roundOf=id=>{const iv=ivsFor(id);return iv.length?Math.max(...iv.map(i=>Number(i.round)||1)):0};
+function payText(r){
+  const a=r.baseMin,b=r.baseMax;
+  if(!a&&!b)return 'Pay unknown';
+  const hr=r.payUnit==='Hour';const f=n=>hr?'$'+n:k(n);
+  let t=a&&b&&a!==b?`${f(a)}–${f(b)}`:f(a||b);if(hr)t+='/hr';
+  if(r.payBasis==='Estimate')t+=' est.';
+  return t;
+}
+function payFlag(r){
+  if(r.payUnit==='Hour'||r.type!=='Full-time')return '';
+  const top=r.baseMax||r.baseMin;const floor=FLOOR[r.city];
+  if(!top||!floor)return '';
+  if(top<floor)return '<span class="pill bad">Below floor</span>';
+  if(top>=TARGET)return '<span class="pill good">Hits target</span>';
+  return '';
+}
+function fitSummary(fit){
+  fit=fit||{};let sum=0,n=0;
+  FIT.forEach(([key])=>{const r=fit[key]&&fit[key].r;if(r==='strong'){sum+=3;n++}else if(r==='promising'){sum+=2;n++}else if(r==='weak'){n++}});
+  if(!n)return 'unknown';const avg=sum/n;return avg>=2.5?'strong':avg>=1.5?'promising':'weak';
+}
+const fitPillClass={strong:'good',promising:'info',weak:'bad',unknown:''};
+const fitDots=fit=>`<span class="fitdots" title="Fit: ${FIT.map(([key,l])=>l+' '+((fit&&fit[key]&&fit[key].r)||'unknown')).join(', ')}">${FIT.map(([key])=>`<i class="${(fit&&fit[key]&&fit[key].r)||'unknown'}"></i>`).join('')}</span>`;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+function errMsg(e){const c=e&&e.code;if(c==='quota_exceeded')return 'Storage is full. Delete some old records, then try again.';if(c==='invalid_argument')return "You can view this tracker but can't change it.";if(c==='resource_exhausted')return 'Too many saves at once. Wait a moment and try again.';return "Couldn't save. Check your connection and try again."}
+function setConn(state,msg){const c=$('#conn');c.className='conn '+state;c.querySelector('span').textContent=msg}
+
+/* ---------- data ---------- */
+async function boot(){
+  route();
+  const c=window.claude;
+  if(!c||typeof c.use!=='function'){setConn('bad','Open this page on claude.ai to load your data.');loaded=true;render();return}
+  try{db=await c.use('db')}catch(e){db=null}
+  if(!db){setConn('bad','Saved data is unavailable in this view.');loaded=true;render();return}
+  const pending=new Set([...COLS,'meta']);
+  const timer=setTimeout(()=>{setConn('warn',"Can't reach your saved data yet.");loaded=true;render()},10000);
+  const done=name=>{if(pending.delete(name)&&!pending.size){clearTimeout(timer);loaded=true;setConn('ok','Synced')}};
+  const fail=e=>{clearTimeout(timer);loaded=true;setConn('bad',e&&e.code==='revoked'?'Access to saved data ended.':"Lost the connection to saved data.");render()};
+  COLS.forEach(name=>{
+    db.collection(name).onSnapshot(snap=>{
+      S[name]=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+      if(!snap.metadata.fromCache)done(name);
+      render();
+    },fail);
+  });
+  db.doc('meta/settings').onSnapshot(snap=>{S.meta=snap.exists?snap.data():{};if(!snap.metadata.fromCache)done('meta');render()},fail);
+}
+async function write(col,id,data){
+  if(!db){toast("Saving isn't available in this view.");return null}
+  try{const ref=id?db.collection(col).doc(id):db.collection(col).doc();await ref.set(data);return ref.id}
+  catch(e){toast(errMsg(e));return null}
+}
+async function patch(col,id,data){
+  if(!db){toast("Saving isn't available in this view.");return false}
+  try{await db.collection(col).doc(id).update(data);return true}catch(e){toast(errMsg(e));return false}
+}
+async function remove(col,id){
+  if(!db)return false;
+  try{await db.collection(col).doc(id).delete();return true}catch(e){toast(errMsg(e));return false}
+}
+
+/* ---------- routing / render ---------- */
+function current(){const h=location.hash.slice(1);return VIEWS.some(v=>v[0]===h)?h:'overview'}
+function route(){render();window.scrollTo(0,0)}
+window.addEventListener('hashchange',route);
+let rq=0;
+function render(){cancelAnimationFrame(rq);rq=requestAnimationFrame(doRender)}
+function doRender(){
+  const v=current();
+  const newLeads=S.leads.filter(l=>(l.state||'new')==='new').length;
+  const activeIv=S.roles.filter(r=>r.status==='interviewing').length;
+  const counts={new:newLeads,pipeline:S.roles.filter(r=>ACTIVE.includes(r.status)).length,companies:S.companies.length,interviews:activeIv};
+  $('#navlist').innerHTML=VIEWS.map(([key,l])=>`<li><a href="#${key}"${key===v?' aria-current="page"':''}>${l}${counts[key]?`<span class="badge${key==='new'&&newLeads?' hot':''}">${counts[key]}</span>`:''}</a></li>`).join('');
+  $('#companyList').innerHTML=S.companies.map(c=>`<option value="${esc(c.name)}">`).join('');
+  const g=pd(S.meta.gradDate||'2027-12-12');const dd=g?Math.round((g-pd(todayStr()))/864e5):null;
+  if(dd!==null){$('#gradCount').textContent=dd>0?`${Math.floor(dd/7)} wks`:'Graduated';$('#gradNote').textContent=`${dd} days · ${g.toLocaleDateString('en-US',{month:'long',year:'numeric'})}`}
+  const el=$('#view');
+  if(!loaded&&!S.roles.length&&!S.companies.length){el.innerHTML=`<div class="head"><div><h2>${esc(VIEWS.find(x=>x[0]===v)[1])}</h2><p>Loading your companies, roles and interviews…</p></div></div>`;return}
+  el.innerHTML=({overview:vOverview,new:vNew,pipeline:vPipeline,companies:vCompanies,interviews:vInterviews,people:vPeople,timeline:vTimeline}[v])();
+  const q=$('#fq');if(q&&UI._focusQ){q.focus();q.setSelectionRange(q.value.length,q.value.length);UI._focusQ=false}
+}
+
+/* ---------- attention logic ---------- */
+function attention(){
+  const out=[];const T=todayStr();
+  S.roles.filter(r=>ACTIVE.includes(r.status)).forEach(r=>{
+    const d=daysFrom(r.dueDate);
+    if(r.nextAction&&d!==null&&d<=0)out.push({sev:d<0?'bad':'warn',t:r.nextAction,s:`${roleLabel(r)} · ${d<0?'overdue '+(-d)+'d':'due today'}`,act:'role',id:r.id,sort:d});
+    if(r.status==='applied'){const last=r.lastContact||r.dateApplied;const n=daysFrom(last);if(n!==null&&n<=-10)out.push({sev:'warn',t:'Follow up — no reply yet',s:`${roleLabel(r)} · last contact ${-n} days ago`,act:'role',id:r.id,sort:n})}
+  });
+  S.interviews.forEach(i=>{
+    const r=byId('roles',i.roleId);const n=daysFrom(i.date);
+    if(n!==null&&n<0&&(i.outcome||'Upcoming')==='Upcoming')out.push({sev:'info',t:`Log how round ${i.round||1} went`,s:`${roleLabel(r)} · ${fmtDate(i.date)}`,act:'iv',id:i.id,sort:n});
+    if(n!==null&&n<=0&&n>=-7&&!i.thankYou&&i.outcome!=='Rejected')out.push({sev:'warn',t:'Send a thank-you note',s:`${roleLabel(r)} · ${i.interviewers?i.interviewers.split('\n')[0]:'round '+(i.round||1)}`,act:'iv',id:i.id,sort:n});
+  });
+  S.contacts.forEach(c=>{const n=daysFrom(c.followUp);if(n!==null&&n<=0)out.push({sev:n<0?'bad':'warn',t:`Follow up with ${c.name}`,s:`${c.company||''} · ${n<0?'overdue '+(-n)+'d':'today'}`,act:'contact',id:c.id,sort:n})});
+  S.companies.forEach(c=>{const n=daysFrom(c.nextDate);if(c.nextStep&&n!==null&&n<=0)out.push({sev:n<0?'bad':'warn',t:c.nextStep,s:`${c.name} research · ${n<0?'overdue '+(-n)+'d':'today'}`,act:'company',id:c.id,sort:n})});
+  return out.sort((a,b)=>a.sort-b.sort);
+}
+function upcoming(days){
+  const out=[];
+  S.interviews.forEach(i=>{const n=daysFrom(i.date);if(n!==null&&n>=0&&n<=days)out.push({date:i.date,t:`Interview · round ${i.round||1}${i.type?' · '+i.type:''}`,s:roleLabel(byId('roles',i.roleId)),act:'iv',id:i.id,kind:'iv'})});
+  S.roles.filter(r=>ACTIVE.includes(r.status)).forEach(r=>{const n=daysFrom(r.dueDate);if(r.nextAction&&n!==null&&n>0&&n<=days)out.push({date:r.dueDate,t:r.nextAction,s:roleLabel(r),act:'role',id:r.id,kind:'task'})});
+  S.companies.forEach(c=>{const n=daysFrom(c.nextDate);if(c.nextStep&&n!==null&&n>0&&n<=days)out.push({date:c.nextDate,t:c.nextStep,s:c.name,act:'company',id:c.id,kind:'task'})});
+  return out.sort((a,b)=>a.date.localeCompare(b.date));
+}
+const itemRow=(sev,t,s,act,id,right)=>`<button class="item" type="button" data-act="${act}" data-id="${esc(id)}"><span class="dot ${sev}"></span><span><span class="t">${esc(t)}</span><br><span class="s">${esc(s)}</span></span>${right||''}</button>`;
+
+/* ---------- views ---------- */
+function vOverview(){
+  const att=attention(),up=upcoming(14);
+  const tracked=S.roles.filter(r=>!r.benchmark||r.status!=='closed');
+  const appliedSet=S.roles.filter(r=>r.dateApplied||['applied','interviewing','offer'].includes(r.status));
+  const responded=appliedSet.filter(r=>['interviewing','offer'].includes(r.status)||roundOf(r.id)>0||r.closedReason==='Rejected');
+  const ivDone=S.interviews.filter(i=>{const n=daysFrom(i.date);return (n!==null&&n<0)||((i.outcome||'Upcoming')!=='Upcoming')}).length;
+  const offers=S.roles.filter(r=>r.status==='offer').length;
+  const active=S.roles.filter(r=>r.status==='interviewing');
+  const newLeads=S.leads.filter(l=>(l.state||'new')==='new');
+  const counts=ACTIVE.map(s=>[s,S.roles.filter(r=>r.status===s).length]);
+  const total=counts.reduce((a,[,n])=>a+n,0)||1;
+  const targets=S.companies.filter(c=>c.priority==='High').concat(S.roles.filter(r=>r.priority==='High'&&ACTIVE.includes(r.status)&&!S.companies.some(c=>c.priority==='High'&&c.name===r.company)));
+  const greet=(()=>{const h=new Date().getHours();return h<12?'Good morning':h<18?'Good afternoon':'Good evening'})();
+  return `
+  <div class="head"><div><h2>${greet}</h2><p>${esc(new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}))}. ${att.length?`${att.length} thing${att.length>1?'s':''} need${att.length>1?'':'s'} attention.`:'Nothing is overdue.'} ${newLeads.length?`${newLeads.length} new job${newLeads.length>1?'s':''} waiting.`:''}</p></div>
+  <div class="actions"><button class="btn" data-act="newCompany">Add company</button><button class="btn primary" data-act="newRole">Add role</button></div></div>
+  <div class="stats">
+    <div class="stat"><b class="num">${appliedSet.length}</b><span>Applied</span></div>
+    <div class="stat"><b class="num">${appliedSet.length?Math.round(responded.length/appliedSet.length*100)+'%':'—'}</b><span>Response rate</span></div>
+    <div class="stat"><b class="num">${ivDone}</b><span>Interviews done</span></div>
+    <div class="stat"><b class="num">${offers}</b><span>Offers</span></div>
+  </div>
+  <div class="grid2">
+    <section class="panel"><h3>Needs attention <span class="small">${att.length||''}</span></h3><div class="list">${att.length?att.slice(0,8).map(a=>itemRow(a.sev,a.t,a.s,a.act,a.id)).join(''):'<p class="empty">You are caught up. Overdue next steps, follow-ups and thank-you notes show up here.</p>'}</div></section>
+    <section class="panel"><h3>Next 14 days</h3><div class="list">${up.length?up.map(u=>itemRow(u.kind==='iv'?'good':'info',u.t,u.s,u.act,u.id,`<span class="pill">${esc(fmtDate(u.date))}</span>`)).join(''):'<p class="empty">No dated interviews or tasks in the next two weeks. Give a role a due date to see it here.</p>'}</div></section>
+  </div>
+  <div class="grid2">
+    <section class="panel"><h3>Active interviews <span class="small">${active.length}</span></h3><div class="list">${active.length?active.map(r=>{const rd=roundOf(r.id);const nxt=ivsFor(r.id).find(i=>(i.outcome||'Upcoming')==='Upcoming');return itemRow(r.benchmark?'info':'good',`${r.company} — ${r.title}`,`${rd?'Round '+rd:'No rounds logged'}${nxt?' · next: '+(nxt.date?fmtDate(nxt.date):'date not set'):''}${r.stageNote?' · '+r.stageNote:''}`,'role',r.id,r.benchmark?'<span class="pill info">Benchmark</span>':'')}).join(''):'<p class="empty">No roles in interviews.</p>'}</div></section>
+    <section class="panel"><h3>Top targets</h3><div class="list">${targets.length?targets.slice(0,8).map(t=>t.name?itemRow('info',t.name,`${t.city||''} · ${t.industry||''}${t.nextStep?' · next: '+t.nextStep:''}`,'company',t.id):itemRow('info',`${t.company} — ${t.title}`,`${t.city||''} · ${statusLabel(t.status)}`,'role',t.id)).join(''):'<p class="empty">Mark a company or role as High priority to pin it here.</p>'}</div></section>
+  </div>
+  <section class="panel"><h3>Pipeline <span class="small">${S.roles.filter(r=>ACTIVE.includes(r.status)).length} active roles · ${S.roles.filter(r=>!ACTIVE.includes(r.status)).length} closed or passed</span></h3>
+    <div class="funnel">${counts.filter(([,n])=>n).map(([s,n])=>`<div style="flex:${n/total};background:${STATUS_COLOR[s]}" title="${statusLabel(s)}: ${n}">${n}</div>`).join('')}</div>
+    <div class="legend">${counts.map(([s,n])=>`<span><i style="background:${STATUS_COLOR[s]}"></i>${statusLabel(s)} <b class="num">${n}</b></span>`).join('')}</div>
+  </section>`;
+}
+
+function leadCard(l){
+  const sc=Number(l.matchScore)||0;const cls=sc>=75?'hi':sc>=55?'mid':'lo';
+  const st=l.state||'new';
+  return `<article class="lead">
+    <div class="top"><div><div class="small">${esc(l.company||'')}${l.city?' · '+esc(l.city):''}</div><h3 style="font-size:16px;margin-top:2px">${esc(l.title||'Untitled')}</h3></div>${l.matchScore!=null&&l.matchScore!==''?`<span class="score ${cls}" title="Match score">${sc}</span>`:''}</div>
+    <div class="kv">${l.lane?`<span class="pill acc">${esc(l.lane)}</span>`:''}${l.type?`<span class="pill">${esc(l.type)}</span>`:''}<span class="pill">${esc(l.salary||'Pay unknown')}</span>${l.posted?`<span class="pill">Posted ${esc(fmtDate(l.posted)||l.posted)}</span>`:''}</div>
+    ${l.why?`<p class="why"><b>Why it fits:</b> ${esc(l.why)}</p>`:''}
+    ${l.concerns?`<p class="con"><b>Check:</b> ${esc(l.concerns)}</p>`:''}
+    <div class="small">Found ${esc(fmtDate(l.foundAt)||'—')}${l.source?' via '+esc(l.source):''}</div>
+    <div class="foot">${st==='new'?`<button class="btn primary sm" data-act="trackLead" data-id="${esc(l.id)}">Track it</button><button class="btn sm" data-act="dismissLead" data-id="${esc(l.id)}">Not for me</button>`:st==='dismissed'?`<button class="btn sm" data-act="restoreLead" data-id="${esc(l.id)}">Move back to new</button>`:`<button class="btn sm" data-act="role" data-id="${esc(l.roleId||'')}">Open in pipeline</button>`}${l.link?`<a class="btn ghost sm" href="${esc(l.link)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}<button class="btn ghost sm" data-act="lead" data-id="${esc(l.id)}">Edit</button></div>
+  </article>`;
+}
+function vNew(){
+  const st=UI.leadState;
+  const list=S.leads.filter(l=>(l.state||'new')===st).sort((a,b)=>(b.foundAt||'').localeCompare(a.foundAt||'')||(Number(b.matchScore)||0)-(Number(a.matchScore)||0));
+  const n=s=>S.leads.filter(l=>(l.state||'new')===s).length;
+  const crit=S.meta.criteria||[];
+  return `<div class="head"><div><h2>New jobs</h2><p>${S.meta.lastSearch?`Last search ran ${esc(fmtDate(S.meta.lastSearch))} (${esc(rel(S.meta.lastSearch))}).`:'The daily search has not run yet.'} ${S.meta.lastSearchNote?esc(S.meta.lastSearchNote):''} Track a job to move it into your pipeline.</p></div>
+    <div class="actions"><div class="seg-toggle" role="group" aria-label="Which jobs">${[['new','New'],['tracked','Tracked'],['dismissed','Dismissed']].map(([key,l])=>`<button type="button" data-act="leadState" data-id="${key}" aria-pressed="${st===key}">${l} <span class="num">${n(key)}</span></button>`).join('')}</div><button class="btn" data-act="newLead">Add a job I found</button></div></div>
+  ${crit.length?`<section class="panel"><h3>What the daily search looks for</h3><div class="criteria">${crit.map(c=>`<span>${esc(c)}</span>`).join('')}</div></section>`:''}
+  ${list.length?`<div class="leads">${list.map(leadCard).join('')}</div>`:`<div class="notice">${st==='new'?'No new jobs right now. Each morning the search adds matching postings here, scored against your criteria. You can also add a job you found yourself, such as a LinkedIn posting.':st==='tracked'?'Jobs you track appear here after they move into your pipeline.':'Jobs you mark "Not for me" appear here, so the search knows not to show them again.'}</div>`}`;
+}
+
+function filteredRoles(){
+  const q=UI.q.toLowerCase();
+  return S.roles.filter(r=>{
+    if(UI.city&&r.city!==UI.city)return false;
+    if(UI.lane&&r.lane!==UI.lane)return false;
+    if(UI.type&&r.type!==UI.type)return false;
+    if(UI.show==='active'&&!ACTIVE.includes(r.status))return false;
+    if(UI.show==='closed'&&ACTIVE.includes(r.status))return false;
+    if(q&&!`${r.company} ${r.title} ${r.team} ${r.notes} ${r.nextAction}`.toLowerCase().includes(q))return false;
+    return true;
+  });
+}
+function roleCard(r){
+  const rd=roundOf(r.id);const f=fitSummary(r.fit);const d=daysFrom(r.dueDate);
+  return `<button class="card" type="button" data-act="role" data-id="${esc(r.id)}">
+    <span class="co"><span>${esc(r.company||'?')}</span>${fitDots(r.fit)}</span>
+    <span class="ti">${esc(r.title||'Untitled role')}</span>
+    <span class="meta">${r.city?`<span class="pill">${esc(r.city)}</span>`:''}${r.type?`<span class="pill">${esc(r.type)}</span>`:''}${rd?`<span class="pill acc">Round ${rd}</span>`:''}${r.benchmark?'<span class="pill info">Benchmark</span>':''}${f!=='unknown'?`<span class="pill ${fitPillClass[f]}">${f} fit</span>`:''}</span>
+    <span class="meta"><span class="pill">${esc(payText(r))}</span>${payFlag(r)}</span>
+    ${r.nextAction?`<span class="na">${esc(r.nextAction)}${r.dueDate?` · <b style="color:${d<0?'var(--bad)':d<=2?'var(--warn)':'inherit'}">${esc(fmtDate(r.dueDate))}</b>`:''}</span>`:''}
+  </button>`;
+}
+function vPipeline(){
+  const rs=filteredRoles();
+  const sel=(id,val,opts,all)=>`<select data-filter="${id}" aria-label="${all}"><option value="">${all}</option>${opts.map(o=>`<option${val===o?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  const cols=UI.show==='active'?ACTIVE:UI.show==='closed'?['closed','passed']:STATUSES.map(s=>s[0]);
+  const body=UI.mode==='board'
+    ?`<div class="board-scroll"><div class="board">${cols.map(s=>{const items=rs.filter(r=>r.status===s);return `<section class="col"><header><b>${statusLabel(s)}</b><span class="badge">${items.length}</span></header>${items.map(roleCard).join('')||'<span class="small" style="padding:4px">—</span>'}</section>`}).join('')}</div></div>`
+    :`<div class="table-scroll"><table><thead><tr><th>Role</th><th>City</th><th>Type</th><th>Status</th><th>Pay</th><th>Fit</th><th>Round</th><th>Next action</th><th>Due</th><th>Last contact</th></tr></thead><tbody>${rs.map(r=>{const d=daysFrom(r.dueDate);return `<tr data-act="role" data-id="${esc(r.id)}" tabindex="0"><td><b>${esc(r.company)}</b><br><span class="s">${esc(r.title)}${r.team?' · '+esc(r.team):''}</span></td><td>${esc(r.city||'')}</td><td>${esc(r.type||'')}</td><td><span class="pill" style="box-shadow:inset 3px 0 0 ${STATUS_COLOR[r.status]}">${esc(statusLabel(r.status))}</span></td><td class="num">${esc(payText(r))} ${payFlag(r)}</td><td>${fitDots(r.fit)}</td><td class="num">${roundOf(r.id)||''}</td><td>${esc(r.nextAction||'')}</td><td class="num" style="color:${d!==null&&d<0?'var(--bad)':'inherit'}">${esc(fmtDate(r.dueDate))}</td><td class="num">${esc(fmtDate(r.lastContact))}</td></tr>`}).join('')||'<tr><td colspan="10" class="empty">No roles match these filters.</td></tr>'}</tbody></table></div>`;
+  return `<div class="head"><div><h2>Pipeline</h2><p>Every role you are watching or pursuing. Open a role to record pay, fit, interviews and the three questions that decide between similar offers.</p></div><div class="actions"><button class="btn primary" data-act="newRole">Add role</button></div></div>
+  <div class="filters">
+    <input id="fq" type="search" placeholder="Search roles" value="${esc(UI.q)}" data-filter="q" aria-label="Search roles">
+    ${sel('city',UI.city,['Boston','NYC','Remote','Other'],'All cities')}
+    ${sel('lane',UI.lane,LANES,'All lanes')}
+    ${sel('type',UI.type,['Full-time','Co-op','Internship','Part-time'],'All types')}
+    <select data-filter="show" aria-label="Which statuses"><option value="active"${UI.show==='active'?' selected':''}>Active only</option><option value="all"${UI.show==='all'?' selected':''}>Everything</option><option value="closed"${UI.show==='closed'?' selected':''}>Closed &amp; passed</option></select>
+    <span style="flex:1"></span>
+    <div class="seg-toggle" role="group" aria-label="Layout"><button type="button" data-act="mode" data-id="board" aria-pressed="${UI.mode==='board'}">Board</button><button type="button" data-act="mode" data-id="table" aria-pressed="${UI.mode==='table'}">Table</button></div>
+  </div>${body}`;
+}
+
+function vCompanies(){
+  const order={High:0,Medium:1,Low:2};
+  const cs=[...S.companies].sort((a,b)=>(order[a.priority]??1)-(order[b.priority]??1)||(a.name||'').localeCompare(b.name||''));
+  return `<div class="head"><div><h2>Companies</h2><p>Firms worth knowing even without an opening. A company can hold several roles that fit differently.</p></div><div class="actions"><button class="btn primary" data-act="newCompany">Add company</button></div></div>
+  ${cs.length?`<div class="cocards">${cs.map(c=>{const roles=S.roles.filter(r=>r.company===c.name);const d=daysFrom(c.nextDate);return `<button class="co-card" type="button" data-act="company" data-id="${esc(c.id)}">
+    <span class="kv"><span class="pill">${esc(c.city||'—')}</span>${c.status?`<span class="pill ${c.status==='Active'?'acc':''}">${esc(c.status)}</span>`:''}${c.priority==='High'?'<span class="pill warn">High priority</span>':''}${roles.length?`<span class="pill info">${roles.length} role${roles.length>1?'s':''}</span>`:''}</span>
+    <h4>${esc(c.name)}</h4>
+    <span class="small">${esc([c.industry,c.stage].filter(Boolean).join(' · '))}</span>
+    ${c.what?`<p>${esc(c.what)}</p>`:''}
+    ${c.teams?`<p class="small"><b>Teams to watch:</b> ${esc(c.teams)}</p>`:''}
+    <span class="nx">${c.nextStep?`Next: ${esc(c.nextStep)}${c.nextDate?` · <b style="color:${d<0?'var(--bad)':'inherit'}">${esc(fmtDate(c.nextDate))}</b>`:''}`:'No next step set'}</span>
+  </button>`}).join('')}</div>`:'<div class="notice">No companies yet. Add one you want to keep an eye on.</div>'}`;
+}
+
+function ivRow(i){
+  const r=byId('roles',i.roleId);const o=i.outcome||'Upcoming';
+  const cls={Upcoming:'info',Waiting:'warn',Advanced:'good',Offer:'good',Rejected:'bad'}[o]||'';
+  return `<tr data-act="iv" data-id="${esc(i.id)}" tabindex="0"><td><b>${esc(r?r.company:'?')}</b><br><span class="s">${esc(r?r.title:'')}</span></td><td class="num">${esc(i.round||1)}</td><td>${esc(i.type||'')}<br><span class="s">${esc(i.format||'')}</span></td><td class="num">${i.date?esc(fmtDate(i.date)):'<span class="s">Not set</span>'}${i.time?'<br><span class="s">'+esc(i.time)+'</span>':''}</td><td>${esc(i.interviewers||'').replace(/\n/g,'<br>')||'<span class="s">Not recorded</span>'}</td><td><span class="pill ${cls}">${esc(o)}</span>${i.howWent?`<br><span class="s">Felt: ${esc(i.howWent)}</span>`:''}</td><td>${i.thankYou?'<span class="pill good">Sent</span>':'<span class="s">—</span>'}</td></tr>`;
+}
+function vInterviews(){
+  const up=S.interviews.filter(i=>(i.outcome||'Upcoming')==='Upcoming').sort((a,b)=>(a.date||'9').localeCompare(b.date||'9'));
+  const past=S.interviews.filter(i=>(i.outcome||'Upcoming')!=='Upcoming').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const byRound={};S.interviews.forEach(i=>{const n=Number(i.round)||1;byRound[n]=(byRound[n]||0)+1});
+  const advanced=S.interviews.filter(i=>['Advanced','Offer'].includes(i.outcome)).length;
+  const decided=S.interviews.filter(i=>['Advanced','Offer','Rejected'].includes(i.outcome)).length;
+  const head=`<thead><tr><th>Role</th><th>Round</th><th>Type</th><th>Date</th><th>Interviewers</th><th>Outcome</th><th>Thank-you</th></tr></thead>`;
+  return `<div class="head"><div><h2>Interviews</h2><p>Each round you have scheduled or finished, who ran it, and what happened.</p></div><div class="actions"><button class="btn primary" data-act="newIv">Log interview</button></div></div>
+  <div class="stats">
+    <div class="stat"><b class="num">${S.interviews.length}</b><span>Rounds logged</span></div>
+    <div class="stat"><b class="num">${up.length}</b><span>Upcoming</span></div>
+    <div class="stat"><b class="num">${decided?Math.round(advanced/decided*100)+'%':'—'}</b><span>Advance rate</span></div>
+    <div class="stat"><b class="num">${Object.keys(byRound).length?Math.max(...Object.keys(byRound).map(Number)):'—'}</b><span>Furthest round</span></div>
+  </div>
+  <section><h3 style="font-size:16px;margin-bottom:8px">Upcoming</h3><div class="table-scroll"><table>${head}<tbody>${up.map(ivRow).join('')||'<tr><td colspan="7" class="empty">Nothing scheduled.</td></tr>'}</tbody></table></div></section>
+  <section><h3 style="font-size:16px;margin-bottom:8px">Done</h3><div class="table-scroll"><table>${head}<tbody>${past.map(ivRow).join('')||'<tr><td colspan="7" class="empty">Finished rounds appear here once you set an outcome.</td></tr>'}</tbody></table></div></section>`;
+}
+
+function vPeople(){
+  const cs=[...S.contacts].sort((a,b)=>(a.followUp||'9').localeCompare(b.followUp||'9'));
+  return `<div class="head"><div><h2>People &amp; stories</h2><p>Recruiters, interviewers, referrals and founders, plus the experiences you keep coming back to in interviews.</p></div><div class="actions"><button class="btn" data-act="newStory">Add story</button><button class="btn primary" data-act="newContact">Add contact</button></div></div>
+  <section><h3 style="font-size:16px;margin-bottom:8px">Contacts</h3><div class="table-scroll"><table><thead><tr><th>Name</th><th>Company</th><th>Relationship</th><th>How we met</th><th>Last contact</th><th>Follow up</th></tr></thead><tbody>${cs.map(c=>{const d=daysFrom(c.followUp);return `<tr data-act="contact" data-id="${esc(c.id)}" tabindex="0"><td><b>${esc(c.name)}</b><br><span class="s">${esc(c.title||'')}</span></td><td>${esc(c.company||'')}</td><td>${esc(c.relation||'')}</td><td>${esc(c.howKnow||'')}</td><td class="num">${esc(fmtDate(c.lastContact))}</td><td class="num" style="color:${d!==null&&d<=0?'var(--bad)':'inherit'}">${esc(fmtDate(c.followUp))}</td></tr>`}).join('')||'<tr><td colspan="6" class="empty">No contacts yet. Add recruiters, interviewers and referrals as you meet them.</td></tr>'}</tbody></table></div></section>
+  <section><h3 style="font-size:16px;margin-bottom:8px">Interview stories</h3><div class="cocards">${S.stories.map(s=>`<button class="co-card" type="button" data-act="story" data-id="${esc(s.id)}"><span class="kv">${(s.tags||'').split(',').filter(x=>x.trim()).map(t=>`<span class="pill">${esc(t.trim())}</span>`).join('')}</span><h4>${esc(s.title)}</h4><p>${esc(s.situation||'')}</p>${s.result?`<p class="small"><b>Result:</b> ${esc(s.result)}</p>`:''}<span class="nx">${s.usedFor?'Used for: '+esc(s.usedFor):'Not used yet'}</span></button>`).join('')||'<div class="notice">No stories yet.</div>'}</div></section>`;
+}
+
+function vTimeline(){
+  const start=new Date(2026,10,1),end=new Date(2028,5,30);const span=end-start;
+  const pct=d=>Math.max(0,Math.min(100,(d-start)/span*100));
+  const P=[['Fall 2026','Classes · interviewing','2026-11-01','2026-12-20','cls'],['Spring 2027','Classes or co-op','2027-01-06','2027-04-30','coop'],['Summer 1','Study abroad','2027-05-05','2027-06-25','dia'],['Summer 2','Summer work','2027-07-01','2027-08-25','work'],['Fall 2027','Last semester · graduate Dec','2027-09-02','2027-12-15','cls'],['Full-time','Start window open','2028-01-03','2028-06-30','ft']];
+  const ticks=[];for(let d=new Date(start);d<=end;d.setMonth(d.getMonth()+2))ticks.push(new Date(d));
+  const now=pd(todayStr());
+  const near=S.roles.filter(r=>r.type&&r.type!=='Full-time'&&ACTIVE.includes(r.status));
+  const ft=S.roles.filter(r=>r.type==='Full-time'&&ACTIVE.includes(r.status));
+  const afCls={'Fits plan':'good','Needs schedule change':'warn','Conflict':'bad','Unknown':''};
+  const rows=list=>list.length?list.map(r=>itemRow(afCls[r.academicFit]==='bad'?'bad':afCls[r.academicFit]==='warn'?'warn':'info',`${r.company} — ${r.title}`,`${r.startDate?'Starts '+r.startDate:'Start date unknown'}${r.academicNote?' · '+r.academicNote:''}`,'role',r.id,`<span class="pill ${afCls[r.academicFit]||''}">${esc(r.academicFit||'Unknown')}</span>`)).join(''):'<p class="empty">None right now.</p>';
+  const qs=S.meta.openQuestions||[];
+  return `<div class="head"><div><h2>Timeline</h2><p>How each opportunity fits around the academic calendar and graduation. Edit the periods in the code to match your own plan.</p></div></div>
+  <section class="panel"><h3>Academic plan</h3><div class="tl-scroll"><div class="tl">
+    ${ticks.map(t=>`<span class="tick" style="left:${pct(t)}%">${t.toLocaleDateString('en-US',{month:'short'})} ’${String(t.getFullYear()).slice(2)}</span>`).join('')}
+    ${P.map(([t,d,s,e,c])=>{const a=pct(pd(s)),b=pct(pd(e));return `<div class="per ${c}" style="left:${a}%;width:calc(${b-a}% - 4px)"><b>${t}</b>${d}</div>`}).join('')}
+    ${now>=start&&now<=end?`<div class="now" style="left:${pct(now)}%"><span>Today</span></div>`:''}
+  </div></div></section>
+  <div class="grid2">
+    <section class="panel"><h3>Co-op and near-term</h3><div class="list">${rows(near)}</div></section>
+    <section class="panel"><h3>Post-grad full-time</h3><div class="list">${rows(ft)}</div></section>
+  </div>
+  ${qs.length?`<section class="panel"><h3>Still deciding</h3><ul class="qlist">${qs.map(q=>`<li>${esc(q)}</li>`).join('')}</ul></section>`:''}`;
+}
+
+/* ---------- forms ---------- */
+const roleSchema=()=>[
+  {sec:'The role'},
+  {k:'company',l:'Company',list:'companyList',req:true},{k:'title',l:'Title',req:true},
+  {k:'team',l:'Team'},{k:'type',l:'Type',t:'select',o:['Full-time','Co-op','Internship','Part-time']},
+  {k:'lane',l:'Search lane',t:'select',o:LANES},{k:'city',l:'City',t:'select',o:['Boston','NYC','Remote','Other']},
+  {k:'workMode',l:'Work mode',t:'select',o:['Unknown','On-site','Hybrid','Remote']},{k:'link',l:'Posting link',t:'url',ph:'https://'},
+  {k:'source',l:'Source',ph:'Greenhouse, referral, LinkedIn…'},{k:'datePosted',l:'Date posted',t:'date'},
+  {sec:'Where it stands'},
+  {k:'status',l:'Status',t:'select',o:STATUSES,def:'watchlist'},{k:'closedReason',l:'If closed, why',t:'select',o:['','Rejected','Ghosted','Withdrew','Filled','Not a fit']},
+  {k:'stageNote',l:'Stage note',ph:'e.g. Awaiting decision after round 2',w:1},
+  {k:'priority',l:'Priority',t:'select',o:['Medium','High','Low']},{k:'benchmark',l:'Benchmark role (compare others to this)',t:'check'},
+  {k:'dateApplied',l:'Date applied',t:'date'},{k:'lastContact',l:'Last contact',t:'date'},
+  {k:'nextAction',l:'Next action'},{k:'dueDate',l:'Due',t:'date'},
+  {sec:'Pay'},
+  {k:'baseMin',l:'Base low',t:'number',ph:'70000'},{k:'baseMax',l:'Base high',t:'number',ph:'100000'},
+  {k:'payUnit',l:'Paid per',t:'select',o:['Year','Hour']},{k:'payBasis',l:'Where the number came from',t:'select',o:['Unknown','Posted range','Recruiter','Estimate','Offer']},
+  {k:'variable',l:'Bonus / commission',ph:'Unknown'},{k:'equity',l:'Equity',ph:'Unknown until an offer'},
+  {sec:'The three questions'},
+  {k:'decideOwn',l:'What would I actually get to decide or own?',t:'textarea',w:1,key:1},
+  {k:'learnFrom',l:'Who would I learn from?',t:'textarea',w:1,key:1},
+  {k:'verify',l:'What do I still need to verify?',t:'textarea',w:1,key:1},
+  {sec:'Role fit'},{t:'fit'},
+  {sec:'Academic timing'},
+  {k:'startDate',l:'Start date',ph:'e.g. Jan 2027'},{k:'academicFit',l:'Fits the academic plan?',t:'select',o:['Unknown','Fits plan','Needs schedule change','Conflict']},
+  {k:'academicNote',l:'Timing note',t:'textarea',rows:2,w:1},
+  {sec:'Notes'},
+  {k:'resume',l:'Resume / cover letter used',w:1},{k:'notes',l:'Notes',t:'textarea',rows:4,w:1}
+];
+const companySchema=()=>[
+  {k:'name',l:'Company',req:true},{k:'city',l:'City',t:'select',o:['Boston','NYC','Boston / NYC','Remote','Other']},
+  {k:'industry',l:'Industry'},{k:'stage',l:'Stage or size'},
+  {k:'status',l:'Status',t:'select',o:['Watchlist','Researching','Outreach planned','Active','Parked']},{k:'priority',l:'Priority',t:'select',o:['Medium','High','Low']},
+  {k:'what',l:'What they do',t:'textarea',rows:2,w:1},{k:'why',l:'Why I am interested',t:'textarea',rows:3,w:1},
+  {k:'teams',l:'Teams to watch',w:1},{k:'careersUrl',l:'Careers page',t:'url',w:1,ph:'https://'},
+  {k:'links',l:'Other links (one per line)',t:'textarea',rows:2,w:1},
+  {k:'nextStep',l:'Next research step'},{k:'nextDate',l:'By',t:'date'},
+  {k:'notes',l:'Notes',t:'textarea',rows:3,w:1}
+];
+const ivSchema=()=>[
+  {k:'roleId',l:'Role',t:'select',o:()=>[['','Choose a role']].concat([...S.roles].sort((a,b)=>roleLabel(a).localeCompare(roleLabel(b))).map(r=>[r.id,roleLabel(r)])),req:true,w:1},
+  {k:'round',l:'Round',t:'number',ph:'1'},{k:'type',l:'Interview type',t:'select',o:['Recruiter screen','Hiring manager','Behavioral','Case','Technical','Panel','Final','Coffee chat','Other']},
+  {k:'date',l:'Date',t:'date'},{k:'time',l:'Time',ph:'2:00 pm ET'},
+  {k:'format',l:'Format',t:'select',o:['Video','Phone','In person']},{k:'outcome',l:'Outcome',t:'select',o:['Upcoming','Waiting','Advanced','Rejected','Offer']},
+  {k:'interviewers',l:'Who is interviewing (one per line: name — title)',t:'textarea',rows:2,w:1},
+  {k:'prep',l:'Prep: questions to ask, stories to use',t:'textarea',rows:5,w:1},
+  {k:'notes',l:'What they asked and what I learned',t:'textarea',rows:5,w:1},
+  {k:'howWent',l:'How it felt',t:'select',o:['','Great','Good','Mixed','Rough']},{k:'thankYou',l:'Thank-you note sent',t:'check'}
+];
+const contactSchema=()=>[
+  {k:'name',l:'Name',req:true},{k:'title',l:'Title'},{k:'company',l:'Company',list:'companyList'},
+  {k:'relation',l:'Relationship',t:'select',o:['Recruiter','Hiring manager','Interviewer','Referral','Founder','Investor','Alum','Other']},
+  {k:'howKnow',l:'How we met',w:1},{k:'email',l:'Email',t:'email'},{k:'linkedin',l:'LinkedIn',t:'url',ph:'https://'},
+  {k:'lastContact',l:'Last contact',t:'date'},{k:'followUp',l:'Follow up on',t:'date'},
+  {k:'notes',l:'Conversation notes',t:'textarea',rows:5,w:1}
+];
+const storySchema=()=>[
+  {k:'title',l:'Story',req:true,w:1},{k:'tags',l:'Shows (comma separated)',w:1,ph:'ownership, ambiguity, leadership'},
+  {k:'situation',l:'Situation and what I did',t:'textarea',rows:5,w:1},{k:'result',l:'Result',t:'textarea',rows:2,w:1},
+  {k:'usedFor',l:'Used for',w:1}
+];
+const leadSchema=()=>[
+  {k:'title',l:'Title',req:true},{k:'company',l:'Company',req:true,list:'companyList'},
+  {k:'city',l:'City',t:'select',o:['Boston','NYC','Remote','Other']},{k:'type',l:'Type',t:'select',o:['Full-time','Co-op','Internship']},
+  {k:'lane',l:'Search lane',t:'select',o:['',...LANES]},{k:'salary',l:'Pay as posted',ph:'$80k–$100k'},
+  {k:'link',l:'Posting link',t:'url',w:1,ph:'https://'},{k:'source',l:'Source'},{k:'posted',l:'Posted',t:'date'},
+  {k:'matchScore',l:'Match score (0–100)',t:'number'},{k:'state',l:'State',t:'select',o:[['new','New'],['tracked','Tracked'],['dismissed','Not for me']]},
+  {k:'why',l:'Why it fits',t:'textarea',rows:3,w:1},{k:'concerns',l:'What to check',t:'textarea',rows:2,w:1}
+];
+
+function fieldHtml(f,d){
+  if(f.sec)return `<h3 class="fsec">${esc(f.sec)}</h3>`;
+  if(f.t==='fit')return fitHtml(d.fit||{});
+  const id='f_'+f.k,v=d[f.k];const lab=esc(f.l);
+  if(f.t==='check')return `<label class="f check${f.w?' wide':''}" for="${id}"><input type="checkbox" id="${id}"${v?' checked':''}><span>${lab}</span></label>`;
+  let inp;
+  if(f.t==='textarea')inp=`<textarea id="${id}" rows="${f.rows||3}" placeholder="${esc(f.ph||'')}">${esc(v)}</textarea>`;
+  else if(f.t==='select'){const opts=typeof f.o==='function'?f.o():f.o;const cur=String(v??f.def??'');inp=`<select id="${id}">${opts.map(o=>{const[ov,ol]=Array.isArray(o)?o:[o,o||'—'];return `<option value="${esc(ov)}"${cur===String(ov)?' selected':''}>${esc(ol)}</option>`}).join('')}</select>`}
+  else inp=`<input id="${id}" type="${f.t||'text'}" value="${esc(v)}" placeholder="${esc(f.ph||'')}"${f.list?` list="${f.list}"`:''}${f.t==='number'?' step="any"':''} autocomplete="off">`;
+  return `<label class="f${f.w?' wide':''}${f.key?' key3':''}" for="${id}"><span>${lab}</span>${inp}</label>`;
+}
+function fitHtml(fit){
+  return `<div class="fitgrid">${FIT.map(([key,l])=>{const cur=(fit[key]&&fit[key].r)||'unknown';const note=(fit[key]&&fit[key].n)||'';return `<div class="fitrow"><div class="fitlab">${esc(l)}</div><div class="seg" role="radiogroup" aria-label="${esc(l)}">${FITV.map(r=>`<label class="seg-${r}"><input type="radio" name="fit_${key}" value="${r}"${cur===r?' checked':''}><span>${r}</span></label>`).join('')}</div><input class="fitnote" id="fn_${key}" value="${esc(note)}" placeholder="Evidence" aria-label="${esc(l)} evidence"></div>`}).join('')}</div>`;
+}
+function openForm(col,id,schema,data,title,extra){
+  modalCtx={col,id,schema,data:Object.assign({},data)};
+  $('#mtitle').textContent=title;
+  $('#mform').innerHTML=schema.map(f=>fieldHtml(f,data)).join('');
+  $('#mextra').innerHTML=extra||'';
+  const del=$('#mdel');del.hidden=!id;del.dataset.armed='';del.textContent='Delete';
+  $('#modal').hidden=false;document.body.classList.add('locked');
+  $('.sheet .body').scrollTop=0;
+}
+function closeModal(){$('#modal').hidden=true;document.body.classList.remove('locked');modalCtx=null}
+function collect(){
+  const o={};
+  for(const f of modalCtx.schema){
+    if(f.sec)continue;
+    if(f.t==='fit'){const fit={};FIT.forEach(([key])=>{const r=document.querySelector(`input[name="fit_${key}"]:checked`);fit[key]={r:r?r.value:'unknown',n:$('#fn_'+key).value.trim()}});o.fit=fit;continue}
+    const el=$('#f_'+f.k);if(!el)continue;
+    if(f.t==='check')o[f.k]=el.checked;
+    else if(f.t==='number')o[f.k]=el.value===''?null:Number(el.value);
+    else o[f.k]=el.value.trim();
+  }
+  return o;
+}
+async function saveModal(){
+  const o=collect();
+  for(const f of modalCtx.schema){if(f.req&&(o[f.k]===''||o[f.k]==null)){toast(`Add ${f.l.toLowerCase()} first.`);const el=$('#f_'+f.k);el&&el.focus();return}}
+  const now=new Date().toISOString();
+  const data=Object.assign({},modalCtx.data,o,{updatedAt:now});delete data.id;
+  if(!modalCtx.id)data.createdAt=now;
+  if(modalCtx.col==='roles'){
+    const prev=modalCtx.data.status;
+    if(data.status==='applied'&&!data.dateApplied)data.dateApplied=todayStr();
+    if(data.status!==prev&&!data.lastContact&&['applied','interviewing','offer'].includes(data.status))data.lastContact=todayStr();
+  }
+  if(modalCtx.col==='interviews'&&!data.round)data.round=1;
+  const col=modalCtx.col;
+  const id=await write(col,modalCtx.id,data);
+  if(id){
+    if(col==='interviews'&&data.roleId){const r=byId('roles',data.roleId);if(r&&['watchlist','researching','outreach','applied'].includes(r.status))await patch('roles',r.id,{status:'interviewing',updatedAt:now})}
+    closeModal();toast('Saved');
+  }
+}
+function openRole(id,preset){
+  const r=id?byId('roles',id):Object.assign({status:'watchlist',type:'Full-time',priority:'Medium',payUnit:'Year',payBasis:'Unknown'},preset||{});
+  if(!r){toast('That role was deleted.');return}
+  let extra='';
+  if(id){
+    const ivs=ivsFor(id);
+    extra=`<section class="sub"><h3>Interviews <button class="btn sm" type="button" data-act="newIv" data-id="${esc(id)}">Add round</button></h3><div class="list">${ivs.length?ivs.map(i=>itemRow({Upcoming:'info',Waiting:'warn',Advanced:'good',Offer:'good',Rejected:'bad'}[i.outcome||'Upcoming'],`Round ${i.round||1}${i.type?' · '+i.type:''}`,`${i.date?fmtDate(i.date):'Date not set'} · ${(i.interviewers||'Interviewer not recorded').split('\n').join(', ')}`,'iv',i.id,`<span class="pill">${esc(i.outcome||'Upcoming')}</span>`)).join(''):'<p class="empty">No interviews logged for this role.</p>'}</div></section>`;
+    const cs=S.contacts.filter(c=>c.company&&c.company===r.company);
+    if(cs.length)extra+=`<section class="sub"><h3>People at ${esc(r.company)}</h3><div class="list">${cs.map(c=>itemRow('info',c.name,[c.title,c.relation].filter(Boolean).join(' · '),'contact',c.id)).join('')}</div></section>`;
+  }
+  openForm('roles',id,roleSchema(),r,id?`${r.company} — ${r.title}`:'Add role',extra);
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const act=b.dataset.act,id=b.dataset.id;
+  if(e.target.closest('a[href]')&&act!=='close')return;
+  switch(act){
+    case 'close':closeModal();break;
+    case 'save':saveModal();break;
+    case 'del':{
+      if(b.dataset.armed!=='1'){b.dataset.armed='1';b.textContent='Click again to delete';return}
+      const {col,id:mid}=modalCtx;if(await remove(col,mid)){closeModal();toast('Deleted')}break}
+    case 'role':if(id)openRole(id);else toast('That role is no longer in your pipeline.');break;
+    case 'newRole':openRole(null);break;
+    case 'company':{const c=byId('companies',id);if(c){const roles=S.roles.filter(r=>r.company===c.name);openForm('companies',id,companySchema(),c,c.name,`<section class="sub"><h3>Roles here <button class="btn sm" type="button" data-act="newRoleAt" data-id="${esc(c.name)}">Add role</button></h3><div class="list">${roles.length?roles.map(r=>itemRow('info',r.title,`${statusLabel(r.status)} · ${r.type||''} · ${payText(r)}`,'role',r.id)).join(''):'<p class="empty">No roles tracked here yet.</p>'}</div></section>`)}break}
+    case 'newRoleAt':closeModal();openRole(null,{company:id,city:(S.companies.find(c=>c.name===id)||{}).city});break;
+    case 'newCompany':openForm('companies',null,companySchema(),{status:'Watchlist',priority:'Medium'},'Add company');break;
+    case 'iv':{const i=byId('interviews',id);if(i)openForm('interviews',id,ivSchema(),i,`${roleLabel(byId('roles',i.roleId))} · Round ${i.round||1}`);break}
+    case 'newIv':{const rid=id||'';closeModal();openForm('interviews',null,ivSchema(),{roleId:rid,round:rid?roundOf(rid)+1:1,outcome:'Upcoming',format:'Video'},'Log interview');break}
+    case 'contact':{const c=byId('contacts',id);if(c){closeModal();openForm('contacts',id,contactSchema(),c,c.name)}break}
+    case 'newContact':openForm('contacts',null,contactSchema(),{},'Add contact');break;
+    case 'story':{const s=byId('stories',id);if(s)openForm('stories',id,storySchema(),s,s.title);break}
+    case 'newStory':openForm('stories',null,storySchema(),{},'Add story');break;
+    case 'lead':{const l=byId('leads',id);if(l)openForm('leads',id,leadSchema(),l,l.title);break}
+    case 'newLead':openForm('leads',null,leadSchema(),{state:'new',foundAt:todayStr(),source:'Found myself'},'Add a job I found');break;
+    case 'dismissLead':if(await patch('leads',id,{state:'dismissed',updatedAt:new Date().toISOString()}))toast('Moved to dismissed');break;
+    case 'restoreLead':if(await patch('leads',id,{state:'new'}))toast('Moved back to new');break;
+    case 'trackLead':{
+      const l=byId('leads',id);if(!l)break;
+      const nums=String(l.salary||'').match(/\d[\d,.]*\s*k?/gi)||[];
+      const toN=s=>{let n=parseFloat(s.replace(/,/g,''));if(/k/i.test(s))n*=1000;return n};
+      const vals=nums.map(toN).filter(n=>n>=1000);
+      const now=new Date().toISOString();
+      const role={company:l.company||'',title:l.title||'',city:l.city||'',type:l.type||'Full-time',lane:l.lane||'',link:l.link||'',source:l.source||'Daily search',datePosted:l.posted||'',status:'watchlist',priority:'Medium',payUnit:'Year',payBasis:vals.length?'Posted range':'Unknown',baseMin:vals[0]||null,baseMax:vals[1]||vals[0]||null,verify:l.concerns||'',notes:l.why?'Why it fit the search: '+l.why:'',leadId:l.id,createdAt:now,updatedAt:now};
+      const rid=await write('roles',null,role);
+      if(rid){await patch('leads',id,{state:'tracked',roleId:rid});toast('Added to your pipeline')}
+      break}
+    case 'leadState':UI.leadState=id;saveUI();render();break;
+    case 'mode':UI.mode=id;saveUI();render();break;
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!$('#modal').hidden)closeModal();
+  if(e.key==='Enter'&&e.target.matches('tr[data-act]'))e.target.click();
+});
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
+$('#mform').addEventListener('submit',e=>{e.preventDefault();saveModal()});
+document.addEventListener('change',e=>{const f=e.target.dataset&&e.target.dataset.filter;if(f&&f!=='q'){UI[f]=e.target.value;saveUI();render()}});
+document.addEventListener('input',e=>{if(e.target.dataset&&e.target.dataset.filter==='q'){UI.q=e.target.value;UI._focusQ=true;saveUI();render()}});
+
+boot();
+</script>
